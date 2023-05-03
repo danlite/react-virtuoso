@@ -1,3 +1,4 @@
+import { GridStateSnapshot } from '../gridSystem'
 import type {
   GridComponents,
   GridComputeItemKey,
@@ -81,6 +82,12 @@ export interface VirtuosoGridProps<D, C = unknown> extends GridRootProps {
    */
   rangeChanged?: (range: ListRange) => void
 
+  /**
+   * reports when the grid state changes. The reported value can be stored and passed back to `restoreStateFrom` to restore the grid to the same state.
+   */
+  stateChanged?: (state: GridStateSnapshot) => void
+
+  restoreStateFrom?: GridStateSnapshot | undefined | null
   /**
    * Called with true / false when the list has reached the bottom / gets scrolled up.
    * Can be used to load newer items, like `tail -f`.

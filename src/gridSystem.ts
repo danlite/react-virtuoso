@@ -77,14 +77,22 @@ function gapComparator(prev: Gap, next: Gap) {
 function dimensionComparator(prev: ElementDimensions, next: ElementDimensions) {
   return prev && prev.width === next.width && prev.height === next.height
 }
+
+export interface GridStateSnapshot {
+  viewport: ElementDimensions
+  item: ElementDimensions
+  gap: Gap
+  scrollTop: number
+}
+
 export const gridSystem = /*#__PURE__*/ u.system(
   ([
     { overscan, visibleRange, listBoundary },
     { scrollTop, viewportHeight, scrollBy, scrollTo, smoothScrollTargetReached, scrollContainerState, footerHeight, headerHeight },
     stateFlags,
     scrollSeek,
-    { propsReady },
-    { windowViewportRect, windowScrollTo, useWindowScroll, customScrollParent, windowScrollContainerState },
+    { propsReady, didMount },
+    { windowViewportRect, useWindowScroll, customScrollParent, windowScrollContainerState, windowScrollTo },
     log,
   ]) => {
     const totalCount = u.statefulStream(0)
@@ -97,6 +105,66 @@ export const gridSystem = /*#__PURE__*/ u.system(
     const deviation = u.statefulStream(0)
     const data = u.statefulStream<Data>(null)
     const gap = u.statefulStream<Gap>({ row: 0, column: 0 })
+    const stateChanged = u.stream<GridStateSnapshot>()
+    const restoreStateFrom = u.stream<GridStateSnapshot | undefined | null>()
+    const stateRestoreInProgress = u.statefulStream(false)
+
+    u.connect(
+      u.pipe(
+        restoreStateFrom,
+        u.filter((value) => value !== undefined && value !== null && value.scrollTop > 0),
+        u.mapTo(0)
+      ),
+      initialItemCount
+    )
+
+    u.subscribe(
+      u.pipe(
+        didMount,
+        u.withLatestFrom(restoreStateFrom),
+        u.filter(([, snapshot]) => snapshot !== undefined && snapshot !== null)
+      ),
+      ([, snapshot]) => {
+        if (!snapshot) {
+          return
+        }
+        u.publish(viewportDimensions, snapshot.viewport), u.publish(itemDimensions, snapshot?.item)
+        u.publish(gap, snapshot.gap)
+        if (snapshot.scrollTop > 0) {
+          u.publish(stateRestoreInProgress, true)
+          u.handleNext(u.pipe(scrollTop, u.skip(1)), (_value) => {
+            u.publish(stateRestoreInProgress, false)
+          })
+          u.publish(scrollTo, { top: snapshot.scrollTop })
+        }
+      }
+    )
+
+    u.connect(
+      u.pipe(
+        viewportDimensions,
+        u.map(({ height }) => height)
+      ),
+      viewportHeight
+    )
+
+    u.connect(
+      u.pipe(
+        u.combineLatest(
+          u.duc(viewportDimensions, dimensionComparator),
+          u.duc(itemDimensions, dimensionComparator),
+          u.duc(gap, (prev, next) => prev && prev.column === next.column && prev.row === next.row),
+          u.duc(scrollTop)
+        ),
+        u.map(([viewport, item, gap, scrollTop]) => ({
+          viewport,
+          item,
+          gap,
+          scrollTop,
+        }))
+      ),
+      stateChanged
+    )
 
     u.connect(
       u.pipe(
@@ -107,8 +175,12 @@ export const gridSystem = /*#__PURE__*/ u.system(
           u.duc(itemDimensions, dimensionComparator),
           u.duc(viewportDimensions, dimensionComparator),
           u.duc(data),
-          u.duc(initialItemCount)
+          u.duc(initialItemCount),
+          u.duc(stateRestoreInProgress)
         ),
+        u.filter(([, , , , , , , stateRestoreInProgress]) => {
+          return !stateRestoreInProgress
+        }),
         u.map(([totalCount, [startOffset, endOffset], gap, item, viewport, data, initialItemCount]) => {
           const { row: rowGap, column: columnGap } = gap
           const { height: itemHeight, width: itemWidth } = item
@@ -125,16 +197,29 @@ export const gridSystem = /*#__PURE__*/ u.system(
 
           const perRow = itemsPerRow(viewportWidth, itemWidth, columnGap)
 
-          let startIndex = perRow * floor((startOffset + rowGap) / (itemHeight + rowGap))
-          let endIndex = perRow * ceil((endOffset + rowGap) / (itemHeight + rowGap)) - 1
-          endIndex = min(totalCount - 1, max(endIndex, perRow - 1))
-          startIndex = min(endIndex, max(0, startIndex))
+          let startIndex!: number
+          let endIndex!: number
+
+          // we know the dimensions from a restored state, but the offsets are not calculated yet
+          if (startOffset === 0 && endOffset === 0 && initialItemCount > 0) {
+            startIndex = 0
+            endIndex = initialItemCount - 1
+          } else {
+            startIndex = perRow * floor((startOffset + rowGap) / (itemHeight + rowGap))
+            endIndex = perRow * ceil((endOffset + rowGap) / (itemHeight + rowGap)) - 1
+            endIndex = min(totalCount - 1, max(endIndex, perRow - 1))
+            startIndex = min(endIndex, max(0, startIndex))
+          }
 
           const items = buildItems(startIndex, endIndex, data)
           const { top, bottom } = gridLayout(viewport, gap, item, items)
           const rowCount = ceil(totalCount / perRow)
           const totalHeight = rowCount * itemHeight + (rowCount - 1) * rowGap
           const offsetBottom = totalHeight - bottom
+
+          if (top === 0) {
+            // debugger
+          }
 
           return { items, offsetTop: top, offsetBottom, top, bottom, itemHeight, itemWidth } as GridState
         })
@@ -153,21 +238,12 @@ export const gridSystem = /*#__PURE__*/ u.system(
 
     u.connect(
       u.pipe(
-        viewportDimensions,
-        u.map(({ height }) => height)
-      ),
-      viewportHeight
-    )
-
-    u.connect(
-      u.pipe(
         u.combineLatest(viewportDimensions, itemDimensions, gridState, gap),
-        u.filter(
-          ([viewportDimensions, itemDimensions, { items }]) =>
-            items.length > 0 && itemDimensions.height !== 0 && viewportDimensions.height !== 0
-        ),
-        u.map(([viewportDimensions, item, { items }, gap]) => {
-          const { top, bottom } = gridLayout(viewportDimensions, gap, item, items)
+        u.filter(([viewportDimensions, itemDimensions, { items }]) => {
+          return items.length > 0 && itemDimensions.height !== 0 && viewportDimensions.height !== 0
+        }),
+        u.map(([viewportDimensions, itemDimensions, { items }, gap]) => {
+          const { top, bottom } = gridLayout(viewportDimensions, gap, itemDimensions, items)
 
           return [top, bottom] as [number, number]
         }),
@@ -215,14 +291,16 @@ export const gridSystem = /*#__PURE__*/ u.system(
     const rangeChanged = u.streamFromEmitter(
       u.pipe(
         u.duc(gridState),
-        u.filter(({ items }) => items.length > 0),
-        u.map(({ items }) => {
+        u.withLatestFrom(stateRestoreInProgress),
+        u.filter(([{ items }, stateRestoreInProgress]) => items.length > 0 && !stateRestoreInProgress),
+        u.map(([{ items }]) => {
           return {
             startIndex: items[0].index,
             endIndex: items[items.length - 1].index,
           }
         }),
-        u.distinctUntilChanged(rangeComparator)
+        u.distinctUntilChanged(rangeComparator),
+        u.throttleTime(0)
       )
     )
 
@@ -302,6 +380,7 @@ export const gridSystem = /*#__PURE__*/ u.system(
       headerHeight,
       initialItemCount,
       gap,
+      restoreStateFrom,
       ...scrollSeek,
 
       // output
@@ -311,7 +390,9 @@ export const gridSystem = /*#__PURE__*/ u.system(
       startReached,
       endReached,
       rangeChanged,
+      stateChanged,
       propsReady,
+      stateRestoreInProgress,
       ...log,
     }
   },
