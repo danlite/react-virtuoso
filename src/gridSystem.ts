@@ -10,7 +10,7 @@ import { stateFlagsSystem } from './stateFlagsSystem'
 import { loggerSystem } from './loggerSystem'
 import { windowScrollerSystem } from './windowScrollerSystem'
 
-export type Data = unknown[] | undefined
+export type Data = unknown[] | null
 
 export interface Gap {
   row: number
@@ -64,10 +64,11 @@ function buildProbeGridState<D = unknown>(items: GridItem<D>[]): GridState {
   }
 }
 
-function buildItems<D>(startIndex: number, endIndex: number, data: D[] | undefined) {
-  return Array.from({ length: endIndex - startIndex + 1 }).map(
-    (_, i) => ({ index: i + startIndex, data: data?.[i + startIndex] } as GridItem<D>)
-  )
+function buildItems<D>(startIndex: number, endIndex: number, data: D[] | null) {
+  return Array.from({ length: endIndex - startIndex + 1 }).map((_, i) => {
+    const dataItem = data === null ? null : data[i + startIndex]
+    return { index: i + startIndex, data: dataItem } as GridItem<D>
+  })
 }
 
 function gapComparator(prev: Gap, next: Gap) {
@@ -82,7 +83,7 @@ export const gridSystem = /*#__PURE__*/ u.system(
     { scrollTop, viewportHeight, scrollBy, scrollTo, smoothScrollTargetReached, scrollContainerState, footerHeight, headerHeight },
     stateFlags,
     scrollSeek,
-    { propsReady, didMount },
+    { propsReady },
     { windowViewportRect, windowScrollTo, useWindowScroll, customScrollParent, windowScrollContainerState },
     log,
   ]) => {
@@ -94,28 +95,8 @@ export const gridSystem = /*#__PURE__*/ u.system(
     const scrollToIndex = u.stream<IndexLocation>()
     const scrollHeight = u.stream<number>()
     const deviation = u.statefulStream(0)
-    const data = u.statefulStream<Data>(undefined)
+    const data = u.statefulStream<Data>(null)
     const gap = u.statefulStream<Gap>({ row: 0, column: 0 })
-
-    u.connect(
-      u.pipe(
-        didMount,
-        u.withLatestFrom(initialItemCount, data),
-        u.filter(([didMount, count]) => didMount && count !== 0),
-        u.map(([, count, data]) => {
-          return {
-            items: buildItems(0, count - 1, data),
-            top: 0,
-            bottom: 0,
-            offsetBottom: 0,
-            offsetTop: 0,
-            itemHeight: 0,
-            itemWidth: 0,
-          }
-        })
-      ),
-      gridState
-    )
 
     u.connect(
       u.pipe(
@@ -125,19 +106,21 @@ export const gridSystem = /*#__PURE__*/ u.system(
           u.duc(gap, gapComparator),
           u.duc(itemDimensions, dimensionComparator),
           u.duc(viewportDimensions, dimensionComparator),
-          data
+          u.duc(data),
+          u.duc(initialItemCount)
         ),
-        u.map(([totalCount, [startOffset, endOffset], gap, item, viewport, data]) => {
+        u.map(([totalCount, [startOffset, endOffset], gap, item, viewport, data, initialItemCount]) => {
           const { row: rowGap, column: columnGap } = gap
           const { height: itemHeight, width: itemWidth } = item
           const { width: viewportWidth } = viewport
 
-          if (totalCount === 0 || viewportWidth === 0) {
+          // don't wipeout the already rendered state if there's an initial item count
+          if (initialItemCount === 0 && (totalCount === 0 || viewportWidth === 0)) {
             return INITIAL_GRID_STATE
           }
 
           if (itemWidth === 0) {
-            return buildProbeGridState(buildItems(0, 0, data))
+            return buildProbeGridState(buildItems(0, Math.max(initialItemCount - 1, 0), data))
           }
 
           const perRow = itemsPerRow(viewportWidth, itemWidth, columnGap)
@@ -162,7 +145,7 @@ export const gridSystem = /*#__PURE__*/ u.system(
     u.connect(
       u.pipe(
         data,
-        u.filter(u.isDefined),
+        u.filter((data) => data !== null),
         u.map((data) => data!.length)
       ),
       totalCount
@@ -179,6 +162,10 @@ export const gridSystem = /*#__PURE__*/ u.system(
     u.connect(
       u.pipe(
         u.combineLatest(viewportDimensions, itemDimensions, gridState, gap),
+        u.filter(
+          ([viewportDimensions, itemDimensions, { items }]) =>
+            items.length > 0 && itemDimensions.height !== 0 && viewportDimensions.height !== 0
+        ),
         u.map(([viewportDimensions, item, { items }, gap]) => {
           const { top, bottom } = gridLayout(viewportDimensions, gap, item, items)
 

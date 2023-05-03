@@ -1,31 +1,37 @@
 import * as React from 'react'
-import { VirtuosoGrid } from '../src'
+import { VirtuosoGrid, GridComponents } from '../src'
 
 function generateItems(length: number) {
   return Array.from({ length }, (_, index) => `My Item ${index}`)
 }
 
 const itemContent = (_: number, data: string) => {
-  return <div style={{ height: 30 }}>{data}</div>
+  return <div style={{ height: 400, backgroundColor: 'red' }}>{data}</div>
 }
 
 export function Example() {
-  const [data, setData] = React.useState(() => generateItems(100))
+  const [data, setData] = React.useState(() => generateItems(200))
 
   const onEndReached = () => {
     setData((prevData) => {
-      return generateItems(prevData.length + 100)
+      return generateItems(prevData.length + 200)
     })
   }
 
   return (
     <VirtuosoGrid
-      useWindowScroll
-      initialItemCount={100}
+      components={{
+        List: TheList,
+      }}
+      initialItemCount={30}
       endReached={onEndReached}
       data={data}
       itemContent={itemContent}
-      style={{ height: 300 }}
+      useWindowScroll
     />
   )
 }
+
+const TheList: GridComponents['List'] = React.forwardRef(({ style, ...props }, ref) => {
+  return <div ref={ref} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', ...style }} {...props} />
+})
