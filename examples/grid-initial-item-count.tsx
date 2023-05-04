@@ -14,7 +14,7 @@ function fetchData(page: number) {
 
 const itemContent = (index: number, data: string | undefined) => {
   return (
-    <div style={{ height: 200, backgroundColor: '#f5f5f5', border: '1px solid black' }}>
+    <div style={{ height: 200, backgroundColor: 'red', border: '1px solid black' }}>
       Item {index} -{' '}
       {data ? (
         <div>
@@ -46,7 +46,7 @@ function loadPersistedState() {
 const ITEMS_PER_PAGE = 50
 
 // poor man's data pager - better to use something like react-query or the equivalent, so that caching is handled properly
-function useDataPager(initialCount: number) {
+function useDataPager(initialCount: number, initialTopMostItemIndex: number) {
   const [data, setData] = React.useState<Array<string | undefined>>(() => Array.from({ length: initialCount }))
   const fetchedPages = React.useRef(new Set<number>())
 
@@ -83,22 +83,28 @@ function useDataPager(initialCount: number) {
     }
   }, [])
 
+  // load the first page
+  if (initialTopMostItemIndex !== null) {
+    console.log('load initial page')
+    loadPage(0)
+  }
+
   return { data, rangeRendered, loadNextPage }
 }
 
 function Example() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { data, loadNextPage, rangeRendered } = useDataPager(1000)
   const initialState = React.useMemo(loadPersistedState, [])
 
   // sharing the URL with the page will load the page (but not the exact scroll location of the sharer)
   // however, if there's a local state, the local state should take precedence
   const initialTopMostItemIndex = React.useMemo(() => {
     if (initialState) {
-      return 0
+      return null
     }
     return (Number(searchParams.get('page')) ?? 0) * ITEMS_PER_PAGE
   }, [searchParams, initialState])
+  const { data, loadNextPage, rangeRendered } = useDataPager(1000, initialTopMostItemIndex)
 
   const rangeChanged = React.useCallback(
     (range: ListRange) => {
@@ -112,6 +118,7 @@ function Example() {
     },
     [rangeRendered]
   )
+
   return (
     <div>
       <div>some header</div>
@@ -119,8 +126,8 @@ function Example() {
         components={{
           List: TheList,
         }}
-        initialItemCount={20} // if set to INITIAL_ITEM_COUNT, end reached is never called, wonder if this is correct.
-        initialTopMostItemIndex={initialTopMostItemIndex}
+        initialItemCount={40} // if set to INITIAL_ITEM_COUNT, end reached is never called, wonder if this is correct.
+        {...(initialTopMostItemIndex !== null ? { initialTopMostItemIndex } : {})}
         endReached={loadNextPage}
         rangeChanged={rangeChanged}
         data={data}
