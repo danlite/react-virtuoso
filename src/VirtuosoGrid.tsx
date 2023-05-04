@@ -90,6 +90,8 @@ const GridItems: React.FC = /*#__PURE__*/ React.memo(function GridItems() {
     return null
   }
 
+  //   console.log('rendering items', gridState.items)
+
   return React.createElement(
     ListComponent,
     {
@@ -227,6 +229,7 @@ const {
       scrollerRef: 'scrollerRef',
       logLevel: 'logLevel',
       restoreStateFrom: 'restoreStateFrom',
+      initialTopMostItemIndex: 'initialTopMostItemIndex',
     },
     methods: {
       scrollTo: 'scrollTo',

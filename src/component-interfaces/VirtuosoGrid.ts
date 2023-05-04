@@ -2,9 +2,9 @@ import { GridStateSnapshot } from '../gridSystem'
 import type {
   GridComponents,
   GridComputeItemKey,
+  GridIndexLocation,
   GridItemContent,
   GridRootProps,
-  IndexLocationWithAlign,
   ListRange,
   ScrollSeekConfiguration,
 } from '../interfaces'
@@ -130,10 +130,16 @@ export interface VirtuosoGridProps<D, C = unknown> extends GridRootProps {
    * Ensure that you have "all levels" enabled in the browser console too see the messages.
    */
   logLevel?: LogLevel
+
+  /*
+   * Set to a value between 0 and totalCount - 1 to make the grid start scrolled to that item.
+   * Pass in an object to achieve additional effects similar to `scrollToIndex`.
+   */
+  initialTopMostItemIndex?: GridIndexLocation
 }
 
 export interface VirtuosoGridHandle {
-  scrollToIndex(location: number | IndexLocationWithAlign): void
+  scrollToIndex(location: GridIndexLocation): void
   scrollTo(location: ScrollToOptions): void
   scrollBy(location: ScrollToOptions): void
 }
