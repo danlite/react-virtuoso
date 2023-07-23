@@ -83,7 +83,11 @@ export const stateFlagsSystem = u.system(([{ scrollContainerState, scrollTop, vi
   u.connect(
     u.pipe(
       u.combineLatest(u.duc(scrollTop), u.duc(atTopThreshold), u.duc(stickyTopOffset)),
-      u.map(([top, atTopThreshold, stickyTopOffset]) => top + stickyTopOffset <= atTopThreshold),
+      u.map(([top, atTopThreshold, stickyTopOffset]) => {
+        // eslint-disable-next-line no-console
+        console.log('scrollTop', top, 'atTopThreshold', atTopThreshold, 'stickyTopOffset', stickyTopOffset)
+        return top <= atTopThreshold
+      }),
       u.distinctUntilChanged()
     ),
     isAtTop
