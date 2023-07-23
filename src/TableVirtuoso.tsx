@@ -209,6 +209,7 @@ const TableRoot: React.FC<TableRootProps> = /*#__PURE__*/ React.memo(function Ta
   const fixedFooterHeight = usePublisher('fixedFooterHeight')
   const fixedHeaderContent = useEmitterValue('fixedHeaderContent')
   const fixedFooterContent = useEmitterValue('fixedFooterContent')
+  const stickyTopOffset = useEmitterValue('stickyTopOffset')
   const context = useEmitterValue('context')
   const theadRef = useSize(u.compose(fixedHeaderHeight, (el) => correctItemSize(el, 'height')))
   const tfootRef = useSize(u.compose(fixedFooterHeight, (el) => correctItemSize(el, 'height')))
@@ -223,7 +224,7 @@ const TableRoot: React.FC<TableRootProps> = /*#__PURE__*/ React.memo(function Ta
         TheTHead!,
         {
           key: 'TableHead',
-          style: { zIndex: 2, position: 'sticky', top: 0 },
+          style: { zIndex: 2, position: 'sticky', top: `${stickyTopOffset}px` },
           ref: theadRef,
           ...contextPropIfNotDomElement(TheTHead, context),
         },
@@ -281,6 +282,7 @@ const {
       groupCounts: 'groupCounts',
       atBottomThreshold: 'atBottomThreshold',
       atTopThreshold: 'atTopThreshold',
+      stickyTopOffset: 'stickyTopOffset',
       computeItemKey: 'computeItemKey',
       defaultItemHeight: 'defaultItemHeight',
       fixedItemHeight: 'fixedItemHeight',

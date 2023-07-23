@@ -240,6 +240,11 @@ export interface VirtuosoProps<D, C> extends ListRootProps {
   atBottomThreshold?: number
 
   /**
+   * By default `0`. Adjust the top offset of the sticky header.
+   */
+  stickyTopOffset?: number
+
+  /**
    * set to LogLevel.DEBUG to enable various diagnostics in the console, the most useful being the item measurement reports.
    *
    * Ensure that you have "all levels" enabled in the browser console too see the messages.

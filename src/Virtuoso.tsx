@@ -361,7 +361,8 @@ const WindowViewport: React.FC<React.PropsWithChildren<unknown>> = ({ children }
 const TopItemListContainer: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
   const TopItemList = useEmitterValue('TopItemListComponent')
   const headerHeight = useEmitterValue('headerHeight')
-  const style = { ...topItemListStyle, marginTop: `${headerHeight}px` }
+  const stickyTopOffset = useEmitterValue('stickyTopOffset')
+  const style = { ...topItemListStyle, marginTop: `${headerHeight}px`, top: `${stickyTopOffset}px` }
   const context = useEmitterValue('context')
   return React.createElement(TopItemList || 'div', { style, context }, children)
 }
@@ -413,6 +414,7 @@ export const {
       components: 'components',
       atBottomThreshold: 'atBottomThreshold',
       atTopThreshold: 'atTopThreshold',
+      stickyTopOffset: 'stickyTopOffset',
       computeItemKey: 'computeItemKey',
       defaultItemHeight: 'defaultItemHeight',
       fixedItemHeight: 'fixedItemHeight',
